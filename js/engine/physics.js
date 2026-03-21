@@ -32,8 +32,8 @@ class DoublePendulum extends PhysicsSystem {
     const d=th1-th2,sd=Math.sin(d),cd=Math.cos(d);
     const a11=(m1/3+m2)*L1*L1,a12=.5*m2*L1*L2*cd,a22=(m2/3)*L2*L2;
     const tau=this.tau[0]??0;
-    const r1=.5*m2*L1*L2*w2*w2*sd-(m1/2+m2)*g*L1*Math.sin(th1)-b1*w1+tau;
-    const r2=-.5*m2*L1*L2*w1*w1*sd-(m2/2)*g*L2*Math.sin(th2)-b2*w2;
+    const r1=-.5*m2*L1*L2*w2*w2*sd-(m1/2+m2)*g*L1*Math.sin(th1)-b1*w1+tau;
+    const r2=.5*m2*L1*L2*w1*w1*sd-(m2/2)*g*L2*Math.sin(th2)-b2*w2;
     const D=a11*a22-a12*a12;
     return[w1,(a22*r1-a12*r2)/D,w2,(a11*r2-a12*r1)/D];
   }
@@ -83,8 +83,8 @@ class CartPole extends PhysicsSystem {
   deriv(t,s){
     const[x,xd,th,w]=s,{M,m,L,g,b,bp}=this;
     const F=this.tau[0]??0,sn=Math.sin(th),cs=Math.cos(th),den=M+m-m*cs*cs;
-    const xdd=(F-b*xd+m*L*w*w*sn-m*g*sn*cs-bp*w*cs/L)/den;
-    const thdd=(-F*cs+b*xd*cs-m*L*w*w*sn*cs+(M+m)*g*sn+bp*w*(M+m)/(m*L))/(L*den);
+    const xdd=(F-b*xd+m*L*w*w*sn-m*g*sn*cs+bp*w*cs/L)/den;
+    const thdd=(-F*cs+b*xd*cs-m*L*w*w*sn*cs+(M+m)*g*sn-bp*w*(M+m)/(m*L))/(L*den);
     return[xd,xdd,w,thdd];
   }
 
@@ -107,9 +107,9 @@ class CartPole extends PhysicsSystem {
 
   /** Linearize around upright (θ=0) */
   linearize(eq=[0,0,0,0]){
-    const{M,m,L,g,b,bp}=this,d=M+m;
+    const{M,m,L,g,b,bp}=this,d=M;
     return{
-      A:[[0,1,0,0],[0,-b/d,-m*g/d,-bp/(d*L)],[0,0,0,1],[0,b/(L*d),d*g/(L*d),bp*d/(m*L*L*d)]],
+      A:[[0,1,0,0],[0,-b/d,-m*g/d,bp/(d*L)],[0,0,0,1],[0,b/(L*d),(M+m)*g/(L*d),-(M+m)*bp/(m*L*L*d)]],
       B:[[0],[1/d],[0],[-1/(L*d)]]
     };
   }

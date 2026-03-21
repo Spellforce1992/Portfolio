@@ -37,8 +37,14 @@ const LQR={
   }
 };
 class LQRController{
-  constructor(sys,Q,R){this.sys=sys;this.Q=Q;this.R=R;this.K=null;this.ref=null;this.ok=false;this.min=-Infinity;this.max=Infinity}
+  constructor(sys,Q,R){this.sys=sys;this.Q=Q;this.R=R;this.K=null;this.ref=null;this.ok=false;this.min=-Infinity;this.max=Infinity;this.angleIdx=null}
   design(eq){const{A,B}=this.sys.linearize(eq);const{K}=LQR.gain(A,B,this.Q,this.R);this.K=K;this.ref=eq;this.ok=true}
-  compute(x){if(!this.ok)return[0];return LQR.apply(this.K,x,this.ref).map(v=>Math.max(this.min,Math.min(this.max,v)))}
+  compute(x){
+    if(!this.ok)return[0];
+    const e=x.map((v,i)=>v-(this.ref[i]||0));
+    if(this.angleIdx)for(const i of this.angleIdx)e[i]=((e[i]+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+    const u=numeric.dot(this.K,e);
+    return(Array.isArray(u)?u:[u]).map(v=>Math.max(this.min,Math.min(this.max,-v)));
+  }
 }
 window.LQR=LQR;window.LQRController=LQRController;

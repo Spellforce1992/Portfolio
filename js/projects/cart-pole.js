@@ -69,7 +69,13 @@ function render(container){
     <div class="sim-wrap"><div class="sim-bar"><h3>Cart-pole</h3>
       <div class="pill" id="ctrl-sel"><button class="active" data-m="none">Free</button><button data-m="pid">PID</button><button data-m="lqr">LQR</button></div></div>
     <canvas id="cv" class="sim-canvas" width="680" height="340"></canvas>
-    <div class="sim-foot"><button class="btn btn-sm" id="b-reset">Reset</button><button class="btn btn-sm" id="b-pause">Pause</button></div></div>
+    <div class="sim-foot"><button class="btn btn-sm" id="b-reset">Reset</button><button class="btn btn-sm" id="b-pause">Pause</button>
+      <button class="btn btn-sm" id="b-vf">Phase portrait</button>
+      <select id="vf-ax" style="display:none;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text)">
+        <option value="2,3">θ vs ω</option><option value="0,1">x vs ẋ</option><option value="0,2">x vs θ</option>
+      </select>
+    </div></div>
+    <canvas id="cv-vf" class="sim-canvas" width="680" height="320" style="display:none;margin-top:4px"></canvas>
     <div class="plots"><div class="plot-box"><canvas id="ch-st"></canvas></div><div class="plot-box"><canvas id="ch-f"></canvas></div></div>
     <div class="panel" style="margin-top:10px"><h3 style="font-size:13px;margin-bottom:6px">Performance metrics</h3><div class="metrics" id="met">—</div></div>
   </div><div class="sidebar" id="sb">
@@ -107,7 +113,7 @@ function render(container){
   sys=new CartPole({M:1,m:.3,L:.6,b:.1,bp:.01,s0:[0,0,th0(),0]});
   function rebuild(){
     sys=new CartPole({M:+$('s-M').value,m:+$('s-m').value,L:+$('s-L').value,b:.1,bp:.01,s0:[0,0,th0(),0]});
-    ctrl=null;if(ctrlMode==='pid')makePID();if(ctrlMode==='lqr')makeLQR();
+    ctrl=null;vfDirty=true;settledFrames=0;if(ctrlMode==='pid')makePID();if(ctrlMode==='lqr')makeLQR();
   }
   function makePID(){ctrl=new PIDController({kp:+$('s-kp').value,ki:+$('s-ki').value,kd:+$('s-kd').value,min:-30,max:30});ctrl.reset()}
   function makeLQR(){
@@ -125,10 +131,13 @@ function render(container){
   container.querySelectorAll('#ctrl-sel button').forEach(b=>b.addEventListener('click',()=>{
     container.querySelectorAll('#ctrl-sel button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
     ctrlMode=b.dataset.m;$('pan-pid').style.display=ctrlMode==='pid'?'':'none';$('pan-lqr').style.display=ctrlMode==='lqr'?'':'none';
-    ctrl=null;if(ctrlMode==='pid')makePID();if(ctrlMode==='lqr')makeLQR();
+    ctrl=null;vfDirty=true;if(ctrlMode==='pid')makePID();if(ctrlMode==='lqr')makeLQR();
   }));
   $('b-reset').addEventListener('click',rebuild);
-  $('b-pause').addEventListener('click',()=>{paused=!paused;$('b-pause').textContent=paused?'Resume':'Pause'});
+  $('b-pause').addEventListener('click',()=>{paused=!paused;settledFrames=0;$('b-pause').textContent=paused?'Resume':'Pause'});
+  let showVF=false,vfDirty=true,settledFrames=0;
+  $('b-vf').addEventListener('click',()=>{showVF=!showVF;$('b-vf').classList.toggle('active',showVF);$('vf-ax').style.display=showVF?'':'none';$('cv-vf').style.display=showVF?'':'none';vfDirty=true});
+  $('vf-ax').addEventListener('change',()=>{vfDirty=true});
 
   ch1=mkChart($('ch-st'),'x (m)','θ (rad)','#4338ca','#b45309');
   ch2=mkChart($('ch-f'),'Force (N)','Limit','#15803d','#e7e5e4');
@@ -142,34 +151,38 @@ function render(container){
     let cRk=n;try{cRk=numeric.svd(numeric.transpose(Cv)).S.filter(s=>s>1e-10).length}catch(e){}
     const eigs=numeric.eig(A).lambda.x;
 
+    const sLbl=['x','ẋ','θ','ω'];
     sb.innerHTML=`
       <div class="step"><div class="step-num">Step 1</div><h4>Cart-pole model</h4>
         <p>Cart (mass M) on a track with a rigid pole (mass m, length 2L) pivoting from the cart. θ = 0 is upright. Single input: horizontal force F on the cart.</p>
         <p style="font-size:12px;color:var(--text-3)">State: x = [x, ẋ, θ, ω]</p></div>
       <div class="step"><div class="step-num">Step 2</div><h4>Linearization around upright (θ = 0)</h4>
-        <div class="math-block">A =\n${fmtM(A)}</div><div class="math-block">B =\n${fmtM(B,4)}</div>
+        <div style="overflow-x:auto"><p style="font-size:12px;font-weight:500;margin:4px 0">A =</p>${MatrixUI.render(A,{id:'d-matA',precision:3,colLabels:sLbl,rowLabels:sLbl})}</div>
+        <div style="overflow-x:auto"><p style="font-size:12px;font-weight:500;margin:4px 0">B =</p>${MatrixUI.render(B,{id:'d-matB',precision:4,colLabels:['F'],rowLabels:sLbl})}</div>
         <p style="font-size:12px">Eigenvalues: ${eigs.map(v=>v.toFixed(2)).join(', ')} ${eigs.some(v=>v>0)?'→ <strong style="color:var(--red)">Unstable</strong>':''}</p></div>
       <div class="step"><div class="step-num">Step 3</div><h4>Controllability</h4>
         <div class="math-block">rank(C) = ${cRk} ${cRk>=n?'✓':'✗'}</div></div>
       <div class="step"><div class="step-num">Step 4</div><h4>Weight selection</h4>
-        <div class="ctrl"><div class="ctrl-row"><span>Q₁₁ (x pos)</span><span class="val" id="dv-q1">1</span></div><input type="range" id="ds-q1" min="0" max="50" step="1" value="1"></div>
-        <div class="ctrl"><div class="ctrl-row"><span>Q₃₃ (θ angle)</span><span class="val" id="dv-q3">50</span></div><input type="range" id="ds-q3" min="1" max="200" step="1" value="50"></div>
-        <div class="ctrl"><div class="ctrl-row"><span>R</span><span class="val" id="dv-r">1</span></div><input type="range" id="ds-r" min=".1" max="20" step=".1" value="1"></div></div>
+        <p>Q penalises state deviation, R penalises control effort. Click cells to edit.</p>
+        <div style="overflow-x:auto"><p style="font-size:12px;font-weight:500;margin:4px 0">Q =</p>${MatrixUI.render([[1,0,0,0],[0,1,0,0],[0,0,50,0],[0,0,0,1]],{id:'d-matQ',editable:true,precision:1,colLabels:sLbl,rowLabels:sLbl})}</div>
+        <div style="overflow-x:auto;margin-top:6px"><p style="font-size:12px;font-weight:500;margin:4px 0">R =</p>${MatrixUI.render([[1]],{id:'d-matR',editable:true,precision:1,colLabels:['F'],rowLabels:['F']})}</div></div>
       <div class="step"><div class="step-num">Step 5</div><h4>Solve Riccati & compute K</h4>
-        <div class="math-block" id="d-res">Press "Compute K"</div>
+        <div id="d-res" style="margin:6px 0"><span style="font-size:12px;color:var(--text-3)">Press "Compute K"</span></div>
         <button class="btn btn-sm btn-p" id="b-solve" style="margin-top:6px">Compute K</button></div>
       <div class="step"><div class="step-num">Step 6</div><h4>Simulate</h4><p>Apply u = −Kx to the nonlinear plant with initial θ₀ ≈ 10°.</p></div>`;
-    ['ds-q1','ds-q3','ds-r'].forEach(id=>{$(id)?.addEventListener('input',()=>{$(id.replace('ds-','dv-')).textContent=$(id).value})});
     $('b-solve').addEventListener('click',()=>{
-      try{const q1=+$('ds-q1').value,q3=+$('ds-q3').value,r=+$('ds-r').value;
-        const Q=[[q1,0,0,0],[0,1,0,0],[0,0,q3,0],[0,0,0,1]],R=[[r]];
+      try{
+        const Q=MatrixUI.read($('d-matQ'));
+        const R=MatrixUI.read($('d-matR'));
         const{K}=LQR.gain(A,B,Q,R);
         const Bv=B.map(r=>[r[0]]),Km=[[K[0][0],K[0][1],K[0][2],K[0][3]]];
         const Acl=numeric.sub(A,numeric.dot(Bv,Km)),clE=numeric.eig(Acl).lambda.x;
-        $('d-res').innerHTML='K = '+fmtV(K[0],2)+'\n\nClosed-loop eigenvalues:\n'+clE.map(v=>v.toFixed(3)).join(', ')+'\n'+(clE.every(v=>v<0)?'✓ Stable':'⚠ Unstable');
+        $('d-res').innerHTML='<p style="font-size:12px;font-weight:500;margin:4px 0">K =</p>'+MatrixUI.render([K[0]],{precision:3,colLabels:sLbl})+
+          '<p style="font-size:12px;margin-top:6px">Closed-loop eigenvalues: '+clE.map(v=>v.toFixed(3)).join(', ')+'</p>'+
+          '<p style="font-size:12px">'+(clE.every(v=>v<0)?'✓ Stable':'⚠ Unstable')+'</p>';
         dCtrl=new LQRController(sys,Q,R);dCtrl.K=K;dCtrl.ref=[0,0,0,0];dCtrl.ok=true;dCtrl.min=-30;dCtrl.max=30;
         $('d-stat').textContent='Ready to simulate';
-      }catch(e){$('d-res').textContent='Failed: '+e.message}});
+      }catch(e){$('d-res').innerHTML='<span style="color:var(--red);font-size:12px">Failed: '+e.message+'</span>'}});
     if(dc1)dc1.destroy();if(dc2)dc2.destroy();
     dc1=mkChart($('dc-st'),'x (m)','θ (rad)','#4338ca','#b45309');
     dc2=mkChart($('dc-f'),'Force','Limit','#15803d','#e7e5e4');
@@ -188,7 +201,26 @@ function render(container){
       let u=[0];
       if(ctrlMode==='pid'&&ctrl)u=[ctrl.compute(0,sys.state[2],sys.dt)];
       else if(ctrlMode==='lqr'&&ctrl?.ok)u=ctrl.compute(sys.state);
-      sys.step(u);drawCart(cv,sys);
+      sys.step(u);
+      // auto-pause after settling
+      if(ctrlMode!=='none'){
+        if(Math.abs(sys.state[2])<0.02&&Math.abs(sys.state[0])<0.05)settledFrames++;else settledFrames=0;
+        if(settledFrames>120&&!paused){paused=true;$('b-pause').textContent='Resume'}
+      }else settledFrames=0;
+      drawCart(cv,sys);
+      // vector field
+      if(showVF&&vfDirty){vfDirty=false;
+        const cvf=$('cv-vf'),cxf=cvf.getContext('2d'),Wv=cvf.width,Hv=cvf.height,dk=isDark();
+        cxf.clearRect(0,0,Wv,Hv);cxf.fillStyle=dk?'#171717':'#f5f5f0';cxf.fillRect(0,0,Wv,Hv);
+        const[ax1,ax2]=$('vf-ax').value.split(',').map(Number);
+        const refSt=[0,0,0,0],mg={x:40,y:14,r:10,b:30};
+        const stL=[['x','m'],['ẋ','m/s'],['θ','rad'],['ω','rad/s']];
+        const ranges={0:[-2,2],1:[-4,4],2:[-.8,.8],3:[-6,6]};
+        const rX=ranges[ax1]||[-2,2],rY=ranges[ax2]||[-2,2];
+        const rc={x:mg.x,y:mg.y,w:Wv-mg.x-mg.r,h:Hv-mg.y-mg.b};
+        VectorField.drawAxes(cxf,{rangeX:rX,rangeY:rY,rect:rc,dark:dk,labelX:stL[ax1][0]+' ('+stL[ax1][1]+')',labelY:stL[ax2][0]+' ('+stL[ax2][1]+')'});
+        VectorField.draw(cxf,{sys,ctrl:ctrlMode!=='none'?ctrl:null,ctrlMode,ref:refSt,pidIdx:2,axisX:ax1,axisY:ax2,rangeX:rX,rangeY:rY,fixedState:refSt.slice(),nx:22,ny:16,rect:rc,dark:dk});
+      }
       if(sys.hist.t.length>0){const t=sys.hist.t,s=sys.hist.s;
         pushCh(ch1,t.map(v=>v.toFixed(1)),s.map(x=>x[0]),s.map(x=>x[2]));
         pushCh(ch2,t.map(v=>v.toFixed(1)),sys.hist.u.map(x=>x[0]||0),sys.hist.u.map(()=>30))}

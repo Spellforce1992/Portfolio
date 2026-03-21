@@ -16,15 +16,15 @@ function card(p){
 function renderHome(c){
   const feat=PROJECTS.filter(p=>p.status==='live').concat(PROJECTS.filter(p=>p.status!=='live')).slice(0,4);
   c.innerHTML=`<section class="hero">
-    <div class="hero-label">Control Systems · Model-Based Design · Simulation</div>
-    <h1>Systems that are <span class="accent">modelled, controlled,</span> and <span class="accent">understood</span></h1>
-    <p>Control-oriented mechanical engineer with experience in LQR design for fusion reactors, embedded motor control, and process automation. This site demonstrates interactive simulations with real physics and real control algorithms — with step-by-step design methods.</p>
+    <div class="hero-label">Engineering · Mathematics · Software · Simulation</div>
+    <h1>Systems that are <span class="accent">modelled, understood,</span> and <span class="accent">built</span></h1>
+    <p>Mechanical engineer with experience in control systems, mathematical modelling, and software development. This site hosts interactive projects spanning control theory, algorithms, and simulation — each with real physics, real math, and adjustable parameters.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><a href="#/projects" class="btn btn-p">Explore projects</a><a href="#/cv" class="btn">View CV</a></div>
   </section>
   <section class="section"><h2>Projects</h2><div class="grid">${feat.map(card).join('')}</div></section>
   <section class="section" style="max-width:620px"><h2>Under the hood</h2>
-    <p>Each simulation runs Lagrangian mechanics with distributed mass, integrated with a 4th-order Runge-Kutta solver. Controllers operate on the full nonlinear plant. LQR gains are computed by solving the algebraic Riccati equation via the Hamiltonian eigenvalue method — all in the browser.</p>
-    <p>Performance is measured with standard metrics: settling time, steady-state error, overshoot, rise time, and integrated absolute error.</p></section>`;
+    <p>Simulations run first-principle physics with 4th-order Runge-Kutta integration. Control projects implement real algorithms — PID, LQR via the algebraic Riccati equation — operating on full nonlinear models. Everything runs in the browser with no backend.</p>
+    <p>Performance is measured with standard metrics where applicable: settling time, steady-state error, overshoot, and more.</p></section>`;
 }
 
 function renderProjects(c){
