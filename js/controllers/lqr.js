@@ -14,7 +14,9 @@ const LQR={
         const P=numeric.dot(U2,numeric.inv(U1));
         return numeric.mul(.5,numeric.add(P,numeric.transpose(P)));
       }
-    }catch(e){}
+    }catch(e){
+      console.warn('LQR: Riccati eigenvalue solver failed, falling back to Kleinman iteration.',e);
+    }
     return this._iter(A,B,Q,R);
   },
   _iter(A,B,Q,R,mx=300){
@@ -24,6 +26,7 @@ const LQR={
       const Pn=numeric.add(numeric.add(numeric.dot(numeric.transpose(A),P),numeric.dot(P,A)),numeric.sub(Q,numeric.dot(P,numeric.dot(S,P))));
       const bl=numeric.add(numeric.mul(.5,Pn),numeric.mul(.5,P));
       if(numeric.norm2(numeric.sub(bl,P))<1e-10){P=bl;break}P=bl;
+      if(i===mx-1){throw new Error('LQR: Kleinman iteration did not converge after '+mx+' iterations. Try adjusting Q/R weights.')}
     }
     return numeric.mul(.5,numeric.add(P,numeric.transpose(P)));
   },

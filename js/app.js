@@ -103,12 +103,14 @@ function renderCV(c){
 function renderContact(c){
   c.innerHTML=`<section style="padding-top:28px;max-width:420px"><h1>Get in touch</h1><p>Interested in working together or discussing control systems and engineering?</p>
     <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px">
-      <a href="https://linkedin.com/in/" target="_blank" rel="noopener" class="btn" style="justify-content:center;padding:11px">LinkedIn →</a>
-      <a href="https://github.com/" target="_blank" rel="noopener" class="btn" style="justify-content:center;padding:11px">GitHub →</a></div></section>`;
+      <a href="https://www.linkedin.com/in/joshua-nierop-2b5747198/" target="_blank" rel="noopener" class="btn" style="justify-content:center;padding:11px">LinkedIn →</a>
+      <a href="https://github.com/Spellforce1992" target="_blank" rel="noopener" class="btn" style="justify-content:center;padding:11px">GitHub →</a></div></section>`;
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
-  initTheme();const r=new Router(document.getElementById('app'));window._router=r;
+document.addEventListener('DOMContentLoaded',async()=>{
+  initTheme();
+  await ProjectRegistry.loadExternal();
+  const r=new Router(document.getElementById('app'));window._router=r;
   r.on('/',renderHome).on('/projects',renderProjects).on('/projects/:id',renderDetail)
    .on('/about',renderAbout).on('/cv',renderCV).on('/contact',renderContact).start();
 });

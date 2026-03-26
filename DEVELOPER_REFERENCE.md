@@ -1,4 +1,4 @@
-# DEVELOPER REFERENCE — Joshua Nierop Portfolio
+# DEVELOPER REFERENCE — Joshua Nierop's Portfolio
 
 > This document is the single source of truth for AI-assisted development.
 > It describes every file, every interaction, every convention.
@@ -28,7 +28,7 @@ users can adjust parameters and observe the effect on closed-loop performance.
 ## 2. FILE STRUCTURE
 
 ```
-portfolio/
+Portfolio/
 ├── index.html                          # SPA shell, script load order
 ├── css/
 │   └── main.css                        # Complete design system (light + dark)
@@ -45,7 +45,10 @@ portfolio/
 │   └── projects/
 │       ├── registry.js                 # Central project configuration array
 │       ├── double-pendulum.js          # Double pendulum project (playground + design)
-│       └── cart-pole.js                # Cart-pole project (playground + design)
+│       ├── cart-pole.js                # Cart-pole project (playground + design)
+│       ├── robot-arm.js               # 3-DOF robot arm project (FK/IK, Three.js 3D)
+│       ├── fusion-demo.js             # Isotope ratio control project (FF+PI, LQR, MIMO)
+│       └── grid-shift.js             # Cyclic grid puzzle with backtracking solver
 └── assets/                             # Images, CV PDF (currently empty)
 ```
 
@@ -57,7 +60,7 @@ Scripts are loaded synchronously in `index.html` in this exact order:
 
 ```
 1. CDN: numeric.js (1.2.6)     — matrix ops, eigenvalues, ODE solver
-2. CDN: Three.js (r128)        — 3D rendering (not yet used by live projects)
+2. CDN: Three.js (r128)        — 3D rendering (used by robot-arm project)
 3. CDN: Chart.js (4.4.1)       — real-time response plots
 4. js/engine/rk4.js            — RK4 integrator → window.RK4
 5. js/engine/physics.js        — PhysicsSystem, DoublePendulum, CartPole → window.*
@@ -67,7 +70,10 @@ Scripts are loaded synchronously in `index.html` in this exact order:
 9. js/projects/registry.js     — PROJECTS, PROJECT_CATEGORIES, ProjectRegistry → window.*
 10. js/projects/double-pendulum.js  — self-registers via ProjectRegistry.register()
 11. js/projects/cart-pole.js        — self-registers via ProjectRegistry.register()
-12. js/router.js               — Router → window.Router
+12. js/projects/robot-arm.js        — self-registers via ProjectRegistry.register()
+13. js/projects/fusion-demo.js      — self-registers via ProjectRegistry.register()
+14. js/projects/grid-shift.js       — self-registers via ProjectRegistry.register()
+15. js/router.js               — Router → window.Router
 13. js/app.js                  — DOMContentLoaded → creates router, defines pages, starts
 ```
 
@@ -727,7 +733,7 @@ Three.js is already loaded from CDN. Create a project that:
 
 ### Deploying
 
-Drop the entire `portfolio/` folder on any static host:
+Drop the entire `Portfolio/` folder on any static host:
 - GitHub Pages (push to `gh-pages` branch or set the source)
 - Netlify / Vercel (drag and drop)
 - Any web server serving static files

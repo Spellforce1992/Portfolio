@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-let raf=null,sys=null,ctrl=null,ch1=null,ch2=null,paused=false,trace=[],target='upright';
+let raf=null,sys=null,ctrl=null,ch1=null,ch2=null,paused=false,trace=[],target='upright',ro=null;
 const PI=Math.PI;
 const TARGETS={upright:[PI,0,PI,0],downward:[0,0,0,0]};
 const INIT_DEG={upright:[-17,11],downward:[103,115]};
@@ -93,6 +93,7 @@ function render(container){
     </div></div>
     <canvas id="cv-vf" class="sim-canvas" width="680" height="320" style="display:none;margin-top:4px"></canvas>
     <div class="plots"><div class="plot-box"><canvas id="ch-ang"></canvas></div><div class="plot-box"><canvas id="ch-nrg"></canvas></div></div>
+    <div style="margin-top:4px;text-align:right"><button class="btn btn-sm" id="b-export" style="font-size:10px;padding:2px 8px">Export CSV</button></div>
     <div class="panel" style="margin-top:10px"><h3 style="font-size:13px;margin-bottom:6px">Performance metrics</h3><div class="metrics" id="met">—</div></div>
   </div>
   <div class="sidebar" id="sb">
@@ -166,10 +167,25 @@ function render(container){
     $('s-th2').value=d[1];$('v-th2').textContent=d[1]+'°';
     rebuild();
   });
+  function redrawVFNow(){
+    if(!showVF)return;vfDirty=false;
+    const cvf=$('cv-vf'),cxf=cvf.getContext('2d'),Wv=cvf.width,Hv=cvf.height,dk=isDark();
+    cxf.clearRect(0,0,Wv,Hv);cxf.fillStyle=dk?'#171717':'#f5f5f0';cxf.fillRect(0,0,Wv,Hv);
+    const[ax1,ax2]=$('vf-ax').value.split(',').map(Number);
+    const refSt=TARGETS[target],mg={x:40,y:14,r:10,b:30};
+    const stL=[['θ₁','rad'],['ω₁','rad/s'],['θ₂','rad'],['ω₂','rad/s']];
+    const isA=i=>i===0||i===2;
+    const rX=isA(ax1)?[refSt[ax1]-1.5,refSt[ax1]+1.5]:[refSt[ax1]-6,refSt[ax1]+6];
+    const rY=isA(ax2)?[refSt[ax2]-1.5,refSt[ax2]+1.5]:[refSt[ax2]-6,refSt[ax2]+6];
+    const rc={x:mg.x,y:mg.y,w:Wv-mg.x-mg.r,h:Hv-mg.y-mg.b};
+    VectorField.drawAxes(cxf,{rangeX:rX,rangeY:rY,rect:rc,dark:dk,labelX:stL[ax1][0]+' ('+stL[ax1][1]+')',labelY:stL[ax2][0]+' ('+stL[ax2][1]+')'});
+    VectorField.draw(cxf,{sys,ctrl:ctrlMode!=='none'?ctrl:null,ctrlMode,ref:refSt,pidIdx:0,axisX:ax1,axisY:ax2,rangeX:rX,rangeY:rY,fixedState:refSt.slice(),nx:22,ny:16,rect:rc,dark:dk});
+  }
   container.querySelectorAll('#ctrl-sel button').forEach(b=>b.addEventListener('click',()=>{
     container.querySelectorAll('#ctrl-sel button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
     ctrlMode=b.dataset.m;$('pan-pid').style.display=ctrlMode==='pid'?'':'none';$('pan-lqr').style.display=ctrlMode==='lqr'?'':'none';
     ctrl=null;vfDirty=true;if(ctrlMode==='pid')makePID();if(ctrlMode==='lqr')makeLQR();
+    redrawVFNow();
   }));
   $('b-reset').addEventListener('click',rebuild);
   $('b-pause').addEventListener('click',()=>{paused=!paused;settledFrames=0;$('b-pause').textContent=paused?'Resume':'Pause'});
@@ -325,9 +341,33 @@ function render(container){
     }
     raf=requestAnimationFrame(loop);
   }
+  // Export CSV
+  $('b-export').addEventListener('click',()=>{
+    if(!sys||!sys.hist.t.length){alert('No data to export');return}
+    const rows=['time,theta1,omega1,theta2,omega2,torque'];
+    const h=sys.hist;
+    for(let i=0;i<h.t.length;i++){
+      rows.push([h.t[i].toFixed(4),h.s[i][0].toFixed(6),h.s[i][1].toFixed(6),h.s[i][2].toFixed(6),h.s[i][3].toFixed(6),(h.u[i]?h.u[i][0]:0).toFixed(6)].join(','));
+    }
+    const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='double-pendulum.csv';a.click();URL.revokeObjectURL(a.href);
+  });
+
+  // ResizeObserver for responsive canvases
+  const MAX_W=900;
+  function resizeCanvas(canvas,aspectH){
+    const w=Math.min(canvas.parentElement.clientWidth,MAX_W);
+    if(w>0&&canvas.width!==Math.round(w)){canvas.width=Math.round(w);canvas.height=Math.round(w*aspectH);vfDirty=true;}
+  }
+  ro=new ResizeObserver(()=>{
+    resizeCanvas(cv,400/680);
+    resizeCanvas($('cv-vf'),320/680);
+  });
+  ro.observe(cv.parentElement);
+
   loop();
 }
 
-function cleanup(){if(raf){cancelAnimationFrame(raf);raf=null}if(ch1){ch1.destroy();ch1=null}if(ch2){ch2.destroy();ch2=null}sys=null;ctrl=null;trace=[];paused=false;target='upright'}
+function cleanup(){if(raf){cancelAnimationFrame(raf);raf=null}if(ch1){ch1.destroy();ch1=null}if(ch2){ch2.destroy();ch2=null}if(ro)ro.disconnect();sys=null;ctrl=null;trace=[];paused=false;target='upright'}
 ProjectRegistry.register('double-pendulum',render,cleanup);
 })();
