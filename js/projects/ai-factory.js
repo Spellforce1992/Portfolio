@@ -3319,7 +3319,7 @@ class BlockUI {
         const inList = models.some(m => m.value === val);
         html += `<div class="settings-field">
           <span class="settings-label">Model</span>
-          <select class="settings-input" data-setting="model" style="font-family:var(--font-mono);font-size:11px;">
+          <select class="settings-select" data-setting="model" style="font-family:var(--font-mono);font-size:11px;">
             ${!inList ? `<option value="${val}" selected>${val} (current)</option>` : ''}
             ${models.map(m => `
               <option value="${m.value}" ${val === m.value ? 'selected' : ''}>${m.label}</option>
@@ -5687,9 +5687,13 @@ function _afBuildDOM(container, isExpanded) {
         <div id="af-window-layer"></div>
         <div id="af-minimap-container" class="${isExpanded ? '' : 'hidden'}">
           <canvas id="af-minimap-canvas"></canvas>
-          <div id="af-minimap-controls"></div>
+          <div id="af-minimap-controls">
+            <button id="af-minimap-zoom-in" class="mini-btn">+</button>
+            <button id="af-minimap-zoom-out" class="mini-btn">−</button>
+          </div>
         </div>
       </div>
+      <div id="af-bottom-dock"></div>
       <div id="af-status-bar"></div>
     </div>
   `;
@@ -5713,7 +5717,7 @@ function _afInitModules(ws, factory) {
   const runLog = FactoryRunLog;
 
   // Init all
-  selMgr.init();
+  if (typeof selMgr.init === 'function') selMgr.init();
   pipeUI.init();
   blockUI.init();
   winMgr.init();
@@ -5725,6 +5729,23 @@ function _afInitModules(ws, factory) {
   ctxMenu.init();
   if (typeof tooltip.init === 'function') tooltip.init();
   if (typeof runLog.init === 'function') runLog.init();
+
+  // Listen for ui:flash events and show temporary notifications
+  Bus.on('ui:flash', ({ message, type }) => {
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:10000;padding:8px 20px;border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:13px;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(8px);`;
+    if (type === 'error') {
+      el.style.background = 'rgba(255,61,90,0.15)'; el.style.color = '#ff3d5a'; el.style.border = '1px solid rgba(255,61,90,0.3)';
+    } else if (type === 'success') {
+      el.style.background = 'rgba(0,255,157,0.1)'; el.style.color = '#00ff9d'; el.style.border = '1px solid rgba(0,255,157,0.2)';
+    } else {
+      el.style.background = 'rgba(74,122,255,0.12)'; el.style.color = '#4a7aff'; el.style.border = '1px solid rgba(74,122,255,0.25)';
+    }
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; }, 2000);
+    setTimeout(() => { el.remove(); }, 2400);
+  });
 
   return {
     selMgr, pipeUI, blockUI, winMgr, sidebar,
@@ -5762,6 +5783,7 @@ function _afRenderSmall(container) {
 
   // Build a mini workspace inside the preview
   const preview = wrap.querySelector('#af-small-preview');
+  if (!preview) return;
   const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
   const dk = isDark();
 
@@ -5791,7 +5813,7 @@ function _afRenderSmall(container) {
   wrap.querySelector('#af-small-expand').addEventListener('click', () => _afExpandToFull());
 
   wrap.querySelector('#af-small-run').addEventListener('click', () => {
-    if (_afFactory._state !== 'running') {
+    if (_afFactory.state !== 'running') {
       _afFactory.run(_afWorkspace);
       const statusEl = wrap.querySelector('#af-small-status');
       if (statusEl) statusEl.textContent = 'Running pipeline...';
@@ -5841,7 +5863,7 @@ function _afRenderSmallBlocks(preview, ws, dk) {
   preview.querySelectorAll('.af-small-block, .af-small-svg').forEach(el => el.remove());
 
   const CAT_COLORS = {
-    'AI Agents': '#f472b6', 'I/O': '#4ade80', 'Logic': '#fb923c',
+    'AI Agents': '#f472b6', 'Input / Output': '#4ade80', 'Logic': '#fb923c',
     'Data': '#818cf8', 'Flow Control': '#34d399', 'Utilities': '#fbbf24'
   };
 
@@ -5855,7 +5877,7 @@ function _afRenderSmallBlocks(preview, ws, dk) {
   ws.blocks.forEach(b => {
     const typeDef = BlockRegistry.get(b.type);
     if (!typeDef) return;
-    const cat = typeDef.category || 'I/O';
+    const cat = typeDef.category || 'Input / Output';
     const col = CAT_COLORS[cat] || '#888';
 
     const el = document.createElement('div');
@@ -6033,7 +6055,15 @@ function _afCollapseToSmall() {
     _afModules = {};
   }
 
-  // Remove overlay
+  // Clear all Bus listeners to prevent leaks from UI modules
+  Bus._listeners = {};
+
+  // Re-register the chat:completed handler since we cleared all listeners
+  Bus.on('chat:completed', ({ blockId, messages }) =>
+    FactoryController.chatCompleted(blockId, messages)
+  );
+
+  // Remove overlay (this removes all DOM elements and their listeners)
   if (_afOverlay) {
     _afOverlay.remove();
     _afOverlay = null;

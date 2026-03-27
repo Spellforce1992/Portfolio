@@ -1340,7 +1340,7 @@
 .af-root .chat-send-btn:hover { background: #5a8aff; }
 
 /* ── Bottom dock ── */
-.af-root #bottom-dock {
+.af-root #af-bottom-dock {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1356,7 +1356,7 @@
   transition: min-height var(--anim-slow);
 }
 
-.af-root #bottom-dock:empty { display: none; }
+.af-root #af-bottom-dock:empty { display: none; }
 
 .af-root .dock-item {
   border-bottom: 1px solid var(--border-dim);
