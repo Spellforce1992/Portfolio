@@ -5610,6 +5610,7 @@ let _afFactory = null;
 let _afModules = {};          // holds all UI module instances
 let _afCleanupFns = [];       // cleanup functions for event listeners
 let _afNavBackup = null;      // backup of nav state before expand
+let _afSmallRenderFn = null;  // small mode's renderBlocks function
 
 // ── Demo Pipeline ────────────────────────────────────────────────────────
 function _afLoadDemo(ws) {
@@ -5757,59 +5758,244 @@ function _afInitModules(ws, factory) {
 // ── Small Mode Render (embedded in project page) ─────────────────────────
 function _afRenderSmall(container) {
   _afSmallContainer = container;
+  const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
 
-  // Create a compact preview of the factory
+  // Create a compact preview with industrial styling
   const wrap = document.createElement('div');
   wrap.className = 'sim-wrap';
   wrap.innerHTML = `
     <div class="sim-bar">
       <h3 style="display:flex;align-items:center;gap:6px">
-        <span style="color:var(--cat-software)">&#x25C6;</span> AI Factory Builder
+        <span style="color:var(--cat-software)">\u25C6</span> AI Factory Builder
       </h3>
       <div style="display:flex;gap:4px">
-        <button class="btn btn-sm btn-p" id="af-small-run">&#x25B6; Run</button>
-        <button class="btn btn-sm" id="af-small-stop">&#x25A0; Stop</button>
-        <button class="btn btn-sm" id="af-small-reset">&#x21BA; Reset</button>
-        <button class="btn btn-sm" id="af-small-expand" style="font-weight:600;">&#x2922; Expand</button>
+        <button class="btn btn-sm btn-p" id="af-small-run">\u25B6 Run</button>
+        <button class="btn btn-sm" id="af-small-stop">\u25A0 Stop</button>
+        <button class="btn btn-sm" id="af-small-reset">\u21BA Reset</button>
+        <button class="btn btn-sm" id="af-small-expand" style="font-weight:600;">\u2922 Expand</button>
       </div>
     </div>
-    <div id="af-small-preview" style="width:100%;height:400px;overflow:hidden;position:relative;cursor:grab;"></div>
+    <div id="af-small-preview" class="af-root" style="width:100%;height:420px;overflow:hidden;position:relative;cursor:grab;"></div>
     <div class="sim-foot" style="justify-content:space-between">
-      <span id="af-small-status" style="font-size:11px;color:var(--text-3)">Click &#x2922; Expand to open the full AI Factory Builder</span>
+      <span id="af-small-status" style="font-size:11px;color:var(--text-3)">Drag blocks to move \u00B7 Drag canvas to pan \u00B7 \u2922 Expand for full interface</span>
       <span id="af-small-count" style="font-size:10px;color:var(--text-3)"></span>
     </div>
   `;
   container.appendChild(wrap);
 
-  // Build a mini workspace inside the preview
   const preview = wrap.querySelector('#af-small-preview');
   if (!preview) return;
-  const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
-  const dk = isDark();
-
-  // Grid background
-  preview.style.backgroundColor = dk ? '#141414' : '#f8f8f5';
-  preview.style.backgroundImage = `radial-gradient(${dk ? '#252525' : '#e0e0da'} 1px, transparent 1px)`;
-  preview.style.backgroundSize = '20px 20px';
 
   // Initialize workspace and factory
   _afWorkspace = new Workspace();
   _afFactory = FactoryController;
-
-  // Load demo
   _afLoadDemo(_afWorkspace);
 
-  // For small mode, we render a simplified static view of the blocks
-  _afRenderSmallBlocks(preview, _afWorkspace, dk);
+  // ── Grid background (theme-responsive) ──
+  function updateSmallGrid() {
+    const dk = isDark();
+    preview.style.backgroundColor = dk ? '#090b0e' : '#f0f0eb';
+    preview.style.backgroundImage = `radial-gradient(circle, ${dk ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'} 1px, transparent 1px), radial-gradient(circle, ${dk ? 'rgba(74,122,255,0.18)' : 'rgba(67,56,202,0.1)'} 1.5px, transparent 1.5px)`;
+    preview.style.backgroundSize = '24px 24px, 120px 120px';
+  }
+  updateSmallGrid();
+
+  // ── Inner world (pannable container) ──
+  const world = document.createElement('div');
+  world.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;transform-origin:0 0;';
+  preview.appendChild(world);
+
+  // SVG layer for pipelines
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;';
+  world.appendChild(svg);
+
+  // Block layer
+  const blockLayer = document.createElement('div');
+  blockLayer.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;';
+  world.appendChild(blockLayer);
+
+  // ── State ──
+  let panX = 0, panY = 0;
+  let panning = null, dragging = null;
+
+  function applyTransform() {
+    world.style.transform = `translate(${panX}px, ${panY}px)`;
+    // Update grid to match pan
+    preview.style.backgroundPosition = `${panX}px ${panY}px, ${panX}px ${panY}px`;
+  }
+
+  // ── Render blocks with industrial look ──
+  function renderBlocks() {
+    blockLayer.innerHTML = '';
+    svg.innerHTML = '';
+    const dk = isDark();
+
+    _afWorkspace.blocks.forEach(b => {
+      const typeDef = BlockRegistry.get(b.type);
+      if (!typeDef) return;
+      const col = typeDef.color || '#4a7aff';
+
+      const el = document.createElement('div');
+      el.className = 'factory-block';
+      el.dataset.blockId = b.id;
+      el.style.cssText = `left:${b.x}px;top:${b.y}px;--block-color:${col};pointer-events:all;width:200px;font-size:13px;`;
+
+      // Header
+      let statusClass = '';
+      if (b.status === 'running') statusClass = 'status-running';
+      else if (b.status === 'done') statusClass = 'status-done';
+      else if (b.status === 'error') statusClass = 'status-error';
+
+      const portsIn = (b.ports?.inputs || []).map(p => `
+        <div class="block-port-row in">
+          <div class="port-dot" data-type="${p.type}" data-port-id="${p.id}" data-block-id="${b.id}" data-dir="in" style="pointer-events:none;"></div>
+          <span class="port-label">${p.label}</span>
+        </div>`).join('');
+
+      const portsOut = (b.ports?.outputs || []).map(p => `
+        <div class="block-port-row out">
+          <div class="port-dot" data-type="${p.type}" data-port-id="${p.id}" data-block-id="${b.id}" data-dir="out" style="pointer-events:none;"></div>
+          <span class="port-label">${p.label}</span>
+        </div>`).join('');
+
+      const isDisplay = b.type === 'output-display';
+      let displayPreview = '';
+      if (isDisplay && b.results?.length) {
+        const val = Object.values(b.results[b.results.length - 1] || {})[0];
+        if (val != null) displayPreview = `<div class="block-display-preview">${String(val).slice(0,150)}</div>`;
+      }
+
+      el.innerHTML = `
+        <div class="block-header" data-drag-handle>
+          <span class="block-icon">${typeDef.icon || '?'}</span>
+          <span class="block-title">${b.name || typeDef.name}</span>
+        </div>
+        <div class="block-body">
+          <div class="block-ports-in">${portsIn}</div>
+          ${displayPreview}
+          <div class="block-ports-out">${portsOut}</div>
+        </div>
+        <div class="block-status ${statusClass}">${b.status || 'idle'}</div>
+      `;
+
+      // Drag handler
+      const header = el.querySelector('[data-drag-handle]');
+      header.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        dragging = { id: b.id, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y };
+        el.style.zIndex = '900'; el.style.opacity = '0.92';
+      });
+
+      blockLayer.appendChild(el);
+    });
+
+    // Render pipelines
+    _afWorkspace.pipelines.forEach(pipe => {
+      const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
+      const tb = _afWorkspace.blocks.get(pipe.toBlockId);
+      if (!fb || !tb) return;
+
+      // Calculate port positions relative to blocks
+      const fromPortIdx = (fb.ports?.outputs || []).findIndex(p => p.id === pipe.fromPortId);
+      const toPortIdx = (fb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId) !== -1
+        ? (tb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId) : 0;
+
+      const fromX = fb.x + 200;
+      const fromY = fb.y + 48 + 10 + Math.max(0, fromPortIdx) * 29 + 11;
+      const toX = tb.x;
+      const toY = tb.y + 48 + 10 + Math.max(0, (tb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId)) * 29 + 11;
+
+      const dx = Math.max(Math.abs(toX - fromX) * 0.5, 60);
+      const type = pipe.resolveType(_afWorkspace);
+      const typeColors = { text:'#4a7aff', number:'#00ff9d', json:'#ffd600', trigger:'#ff3d5a', image:'#9d4aff', bool:'#ff8c00', any:'#8090b0' };
+      const strokeCol = typeColors[type] || '#8090b0';
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${fromX},${fromY} C${fromX+dx},${fromY} ${toX-dx},${toY} ${toX},${toY}`);
+      path.setAttribute('stroke', strokeCol);
+      path.setAttribute('stroke-width', fb.status === 'done' ? '2.5' : '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      if (fb.status === 'done') path.setAttribute('filter', `drop-shadow(0 0 3px ${strokeCol})`);
+      svg.appendChild(path);
+    });
+  }
+
+  renderBlocks();
+  _afSmallRenderFn = renderBlocks;
+
+  // ── Pan interaction ──
+  preview.addEventListener('mousedown', e => {
+    if (dragging) return;
+    const target = e.target.closest('.factory-block');
+    if (target) return; // let block drag handle it
+    e.preventDefault();
+    panning = { sx: e.clientX, sy: e.clientY, opx: panX, opy: panY };
+    preview.style.cursor = 'grabbing';
+  });
+
+  const onMove = e => {
+    if (dragging) {
+      const b = _afWorkspace.blocks.get(dragging.id);
+      if (!b) return;
+      b.x = dragging.ox + (e.clientX - dragging.sx);
+      b.y = dragging.oy + (e.clientY - dragging.sy);
+      const el = blockLayer.querySelector(`[data-block-id="${b.id}"]`);
+      if (el) { el.style.left = b.x + 'px'; el.style.top = b.y + 'px'; }
+      // Re-render pipelines
+      svg.innerHTML = '';
+      _afWorkspace.pipelines.forEach(pipe => {
+        const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
+        const tb = _afWorkspace.blocks.get(pipe.toBlockId);
+        if (!fb || !tb) return;
+        const fromPortIdx = (fb.ports?.outputs || []).findIndex(p => p.id === pipe.fromPortId);
+        const fromX = fb.x + 200;
+        const fromY = fb.y + 48 + 10 + Math.max(0, fromPortIdx) * 29 + 11;
+        const toX = tb.x;
+        const toY = tb.y + 48 + 10 + Math.max(0, (tb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId)) * 29 + 11;
+        const dx = Math.max(Math.abs(toX - fromX) * 0.5, 60);
+        const type = pipe.resolveType(_afWorkspace);
+        const typeColors = { text:'#4a7aff', number:'#00ff9d', json:'#ffd600', trigger:'#ff3d5a', image:'#9d4aff', bool:'#ff8c00', any:'#8090b0' };
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${fromX},${fromY} C${fromX+dx},${fromY} ${toX-dx},${toY} ${toX},${toY}`);
+        path.setAttribute('stroke', typeColors[type] || '#8090b0');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(path);
+      });
+    }
+    if (panning) {
+      panX = panning.opx + (e.clientX - panning.sx);
+      panY = panning.opy + (e.clientY - panning.sy);
+      applyTransform();
+    }
+  };
+
+  const onUp = () => {
+    if (dragging) {
+      const el = blockLayer.querySelector(`[data-block-id="${dragging.id}"]`);
+      if (el) { el.style.zIndex = ''; el.style.opacity = ''; }
+      dragging = null;
+    }
+    if (panning) { panning = null; preview.style.cursor = 'grab'; }
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  _afCleanupFns.push(() => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); });
+
+  // ── Theme change listener ──
+  const themeObs = new MutationObserver(() => { updateSmallGrid(); renderBlocks(); });
+  themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  _afCleanupFns.push(() => themeObs.disconnect());
 
   // Update count
   const countEl = wrap.querySelector('#af-small-count');
-  const updateCount = () => {
-    if (countEl) countEl.textContent = `${_afWorkspace.blocks.size} blocks · ${_afWorkspace.pipelines.size} connections`;
-  };
-  updateCount();
+  if (countEl) countEl.textContent = `${_afWorkspace.blocks.size} blocks \u00B7 ${_afWorkspace.pipelines.size} connections`;
 
-  // Button handlers
+  // ── Button handlers ──
   wrap.querySelector('#af-small-expand').addEventListener('click', () => _afExpandToFull());
 
   wrap.querySelector('#af-small-run').addEventListener('click', () => {
@@ -5817,29 +6003,26 @@ function _afRenderSmall(container) {
       _afFactory.run(_afWorkspace);
       const statusEl = wrap.querySelector('#af-small-status');
       if (statusEl) statusEl.textContent = 'Running pipeline...';
-
       Bus.once('factory:completed', () => {
         if (statusEl) statusEl.textContent = 'Pipeline complete';
-        _afRenderSmallBlocks(preview, _afWorkspace, isDark());
+        renderBlocks();
       });
     }
   });
 
   wrap.querySelector('#af-small-stop').addEventListener('click', () => {
     _afFactory.stop();
-    const statusEl = wrap.querySelector('#af-small-status');
-    if (statusEl) statusEl.textContent = 'Stopped';
+    wrap.querySelector('#af-small-status').textContent = 'Stopped';
   });
 
   wrap.querySelector('#af-small-reset').addEventListener('click', () => {
     _afFactory.stop();
     _afWorkspace.blocks.forEach(b => { b.status = 'idle'; b.results = []; });
-    _afRenderSmallBlocks(preview, _afWorkspace, isDark());
-    const statusEl = wrap.querySelector('#af-small-status');
-    if (statusEl) statusEl.textContent = 'Reset — click ▶ Run or ⤢ Expand';
+    renderBlocks();
+    wrap.querySelector('#af-small-status').textContent = 'Reset \u2014 click \u25B6 Run or \u2922 Expand';
   });
 
-  // Description section below
+  // Description section
   const desc = document.createElement('div');
   desc.className = 'step';
   desc.style.marginTop = '12px';
@@ -5847,19 +6030,19 @@ function _afRenderSmall(container) {
     <div class="step-num">How it works</div>
     <h4>Directed Acyclic Graph Execution</h4>
     <p>Blocks are nodes in a DAG. Each block executes only when all upstream inputs are resolved. The engine performs a <strong>topological sort</strong> (Kahn's algorithm) to determine execution order, then processes blocks sequentially with async support for AI blocks.</p>
-    <div class="math-block">order = topoSort(V, E)    // Kahn's BFS — O(V+E)
+    <div class="math-block">order = topoSort(V, E)    // Kahn's BFS \u2014 O(V+E)
 for block in order:
-  inputs &#8592; gather(upstream connections)
-  result &#8592; await block.exec(config, inputs)
-  propagate(result &#8594; downstream)</div>
-    <p style="margin-top:8px;font-size:12px;color:var(--text-3)">Click <strong>&#x2922; Expand</strong> to open the full factory layout with the industrial interface, floating windows, minimap, and all 30+ block types.</p>
+  inputs \u2190 gather(upstream connections)
+  result \u2190 await block.exec(config, inputs)
+  propagate(result \u2192 downstream)</div>
+    <p style="margin-top:8px;font-size:12px;color:var(--text-3)">Click <strong>\u2922 Expand</strong> to open the full factory layout with the industrial interface, floating windows, minimap, and all 30+ block types.</p>
   `;
   container.appendChild(desc);
 }
 
-// ── Render simplified blocks in small preview ────────────────────────────
+// ── (legacy — removed, small mode now renders inline) ────────────────────
 function _afRenderSmallBlocks(preview, ws, dk) {
-  // Clear existing
+  // No-op: small mode rendering is now handled within _afRenderSmall
   preview.querySelectorAll('.af-small-block, .af-small-svg').forEach(el => el.remove());
 
   const CAT_COLORS = {
@@ -6099,15 +6282,11 @@ function _afCollapseToSmall() {
 
   // Re-render small preview if container still exists
   if (_afSmallContainer) {
-    const preview = _afSmallContainer.querySelector('#af-small-preview');
-    if (preview) {
-      const dk = document.documentElement.getAttribute('data-theme') === 'dark';
-      _afRenderSmallBlocks(preview, _afWorkspace, dk);
-    }
+    if (_afSmallRenderFn) _afSmallRenderFn();
     const statusEl = _afSmallContainer.querySelector('#af-small-status');
-    if (statusEl) statusEl.textContent = 'Collapsed — click ⤢ Expand to reopen';
+    if (statusEl) statusEl.textContent = 'Collapsed \u2014 click \u2922 Expand to reopen';
     const countEl = _afSmallContainer.querySelector('#af-small-count');
-    if (countEl) countEl.textContent = `${_afWorkspace.blocks.size} blocks · ${_afWorkspace.pipelines.size} connections`;
+    if (countEl) countEl.textContent = `${_afWorkspace.blocks.size} blocks \u00B7 ${_afWorkspace.pipelines.size} connections`;
   }
 
   // Run cleanup functions

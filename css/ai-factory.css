@@ -432,6 +432,7 @@
 
 .af-root #af-pipeline-layer .pipeline-path {
   fill: none;
+  stroke: var(--port-any, #8090b0);
   stroke-width: 2;
   stroke-linecap: round;
   pointer-events: stroke;
