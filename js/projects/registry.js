@@ -25,23 +25,13 @@ const PROJECTS=[
     tags:['Backtracking','Modular Arithmetic','Combinatorics','Pruning'],
     desc:'A combinatorial puzzle where placing shapes on a grid cycles covered cells through states (mod N). Features a backtracking solver with pruning that finds solutions algorithmically, with step-by-step visualization of the search process.',
     short:'Solve modular grid puzzles with backtracking',render:null,cleanup:null},
-];
-const EXTERNAL_PROJECTS=[
-  '../AI Factory Builder/portfolio.json',
+  {id:'ai-factory',title:'AI Factory Builder',subtitle:'Design and deploy AI pipelines',category:'software',status:'live',
+    tags:['AI','Pipelines','Automation','LLM','Drag & Drop','DAG','Vanilla JS'],
+    desc:'Visual workflow automation platform for designing, executing, and monitoring AI-powered factories. Build node-and-wire graphs where each block represents a task — LLM calls, data transforms, logic gates, and more — then run them as a topologically sorted DAG. 30+ block types, dual AI provider support, interactive chat blocks, and real-time execution.',
+    short:'Visual AI pipeline builder with drag & drop',render:null,cleanup:null},
 ];
 const ProjectRegistry={
   getAll(){return PROJECTS},get(id){return PROJECTS.find(p=>p.id===id)},byCat(c){return PROJECTS.filter(p=>p.category===c)},cats(){return PROJECT_CATEGORIES},
-  register(id,render,cleanup){const p=PROJECTS.find(x=>x.id===id);if(p){p.render=render;p.cleanup=cleanup;if(p.status==='planned')p.status='live'}},
-  async loadExternal(){
-    const results=await Promise.allSettled(EXTERNAL_PROJECTS.map(url=>fetch(url).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()})));
-    for(const r of results){
-      if(r.status==='fulfilled'){
-        const p=r.value;
-        const existing=PROJECTS.find(x=>x.id===p.id);
-        if(existing){Object.assign(existing,p)}
-        else{PROJECTS.push({...p,render:null,cleanup:null})}
-      }
-    }
-  }
+  register(id,render,cleanup){const p=PROJECTS.find(x=>x.id===id);if(p){p.render=render;p.cleanup=cleanup;if(p.status==='planned')p.status='live'}}
 };
 window.PROJECTS=PROJECTS;window.PROJECT_CATEGORIES=PROJECT_CATEGORIES;window.ProjectRegistry=ProjectRegistry;

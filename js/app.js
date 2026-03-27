@@ -107,9 +107,8 @@ function renderContact(c){
       <a href="https://github.com/Spellforce1992" target="_blank" rel="noopener" class="btn" style="justify-content:center;padding:11px">GitHub →</a></div></section>`;
 }
 
-document.addEventListener('DOMContentLoaded',async()=>{
+document.addEventListener('DOMContentLoaded',()=>{
   initTheme();
-  await ProjectRegistry.loadExternal();
   const r=new Router(document.getElementById('app'));window._router=r;
   r.on('/',renderHome).on('/projects',renderProjects).on('/projects/:id',renderDetail)
    .on('/about',renderAbout).on('/cv',renderCV).on('/contact',renderContact).start();
