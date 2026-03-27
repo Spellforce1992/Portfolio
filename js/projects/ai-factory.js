@@ -5716,11 +5716,11 @@ function _afInitModules(ws, factory) {
   const tooltip = Tooltip;
   const runLog = FactoryRunLog;
 
-  // Init all
+  // Init all — BlockUI MUST init before PipelineUI so blocks exist when pipelines render
   if (typeof selMgr.init === 'function') selMgr.init();
-  pipeUI.init();
-  blockUI.init();
   winMgr.init();
+  blockUI.init();
+  pipeUI.init();
   sidebar.init();
   controls.init();
   statusBar.init();
@@ -6032,6 +6032,11 @@ function _afExpandToFull() {
 
   // Trigger initial render
   Bus.emit('workspace:rebuilt', {});
+
+  // Force pipeline re-render after blocks are laid out
+  requestAnimationFrame(() => {
+    if (_afModules.pipeUI) _afModules.pipeUI.renderAll();
+  });
 
   // Prevent body scroll
   document.body.style.overflow = 'hidden';
