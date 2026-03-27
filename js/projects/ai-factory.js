@@ -5758,178 +5758,168 @@ function _afInitModules(ws, factory) {
 // ── Small Mode Render (embedded in project page) ─────────────────────────
 function _afRenderSmall(container) {
   _afSmallContainer = container;
-  const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
-
-  // Create a compact preview with industrial styling
-  const wrap = document.createElement('div');
-  wrap.className = 'sim-wrap';
-  wrap.innerHTML = `
-    <div class="sim-bar">
-      <h3 style="display:flex;align-items:center;gap:6px">
-        <span style="color:var(--cat-software)">\u25C6</span> AI Factory Builder
-      </h3>
-      <div style="display:flex;gap:4px">
-        <button class="btn btn-sm btn-p" id="af-small-run">\u25B6 Run</button>
-        <button class="btn btn-sm" id="af-small-stop">\u25A0 Stop</button>
-        <button class="btn btn-sm" id="af-small-reset">\u21BA Reset</button>
-        <button class="btn btn-sm" id="af-small-expand" style="font-weight:600;">\u2922 Expand</button>
-      </div>
-    </div>
-    <div id="af-small-preview" class="af-root" style="width:100%;height:420px;overflow:hidden;position:relative;cursor:grab;"></div>
-    <div class="sim-foot" style="justify-content:space-between">
-      <span id="af-small-status" style="font-size:11px;color:var(--text-3)">Drag blocks to move \u00B7 Drag canvas to pan \u00B7 \u2922 Expand for full interface</span>
-      <span id="af-small-count" style="font-size:10px;color:var(--text-3)"></span>
-    </div>
-  `;
-  container.appendChild(wrap);
-
-  const preview = wrap.querySelector('#af-small-preview');
-  if (!preview) return;
 
   // Initialize workspace and factory
   _afWorkspace = new Workspace();
   _afFactory = FactoryController;
   _afLoadDemo(_afWorkspace);
 
-  // ── Grid background (theme-responsive) ──
-  function updateSmallGrid() {
-    const dk = isDark();
-    preview.style.backgroundColor = dk ? '#090b0e' : '#f0f0eb';
-    preview.style.backgroundImage = `radial-gradient(circle, ${dk ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'} 1px, transparent 1px), radial-gradient(circle, ${dk ? 'rgba(74,122,255,0.18)' : 'rgba(67,56,202,0.1)'} 1.5px, transparent 1.5px)`;
-    preview.style.backgroundSize = '24px 24px, 120px 120px';
-  }
-  updateSmallGrid();
+  // ── Controls bar (industrial dark, matches factory style) ──
+  const ctrlBar = document.createElement('div');
+  ctrlBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#0d1016;border:1px solid #1c2436;border-bottom:none;border-radius:8px 8px 0 0;';
+  ctrlBar.innerHTML = `
+    <span style="font-family:'Share Tech Mono',monospace;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:2px;">AI Factory</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button id="af-small-run" style="height:32px;border-radius:5px;padding:0 14px;border:1px solid rgba(0,255,157,0.4);background:rgba(19,23,32,0.9);color:#00ff9d;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>\u25B6</span>Run</button>
+      <button id="af-small-stop" style="height:32px;border-radius:5px;padding:0 14px;border:1px solid rgba(255,61,90,0.3);background:rgba(19,23,32,0.9);color:#ff3d5a;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>\u25A0</span>Stop</button>
+      <button id="af-small-reset" style="height:32px;border-radius:5px;padding:0 14px;border:1px solid #1c2436;background:rgba(19,23,32,0.9);color:#8090b0;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>\u21BA</span>Reset</button>
+      <div style="width:1px;height:20px;background:#1c2436;margin:0 2px;"></div>
+      <button id="af-small-expand" style="height:32px;border-radius:5px;padding:0 14px;border:1px solid rgba(0,212,255,0.3);background:rgba(19,23,32,0.9);color:#00d4ff;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>\u2922</span>Expand</button>
+    </div>
+  `;
+  container.appendChild(ctrlBar);
+
+  // ── Workspace (always dark industrial theme) ──
+  const preview = document.createElement('div');
+  preview.id = 'af-small-preview';
+  preview.className = 'af-root';
+  preview.style.cssText = 'width:100%;height:420px;overflow:hidden;position:relative;cursor:grab;background:#090b0e;border:1px solid #1c2436;border-top:none;';
+  // Grid background
+  preview.style.backgroundImage = 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px), radial-gradient(circle, rgba(74,122,255,0.18) 1.5px, transparent 1.5px)';
+  preview.style.backgroundSize = '24px 24px, 120px 120px';
+  container.appendChild(preview);
+
+  // ── Status bar (industrial) ──
+  const statusBar = document.createElement('div');
+  statusBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 14px;background:#0d1016;border:1px solid #1c2436;border-top:none;border-radius:0 0 8px 8px;height:26px;';
+  statusBar.innerHTML = `
+    <span id="af-small-status" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#354260;">READY</span>
+    <span id="af-small-count" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#354260;"></span>
+  `;
+  container.appendChild(statusBar);
 
   // ── Inner world (pannable container) ──
   const world = document.createElement('div');
   world.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;transform-origin:0 0;';
   preview.appendChild(world);
 
-  // SVG layer for pipelines
+  // SVG pipeline layer
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2;';
   world.appendChild(svg);
 
   // Block layer
   const blockLayer = document.createElement('div');
-  blockLayer.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;';
+  blockLayer.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:10;';
   world.appendChild(blockLayer);
 
   // ── State ──
   let panX = 0, panY = 0;
   let panning = null, dragging = null;
+  const TYPE_COLORS = { text:'#4a7aff', number:'#00ff9d', json:'#ffd600', trigger:'#ff3d5a', image:'#9d4aff', bool:'#ff8c00', any:'#8090b0' };
 
-  function applyTransform() {
+  function applyPan() {
     world.style.transform = `translate(${panX}px, ${panY}px)`;
-    // Update grid to match pan
     preview.style.backgroundPosition = `${panX}px ${panY}px, ${panX}px ${panY}px`;
   }
 
-  // ── Render blocks with industrial look ──
+  // ── Pipeline rendering using actual port dot positions ──
+  function renderPipelines() {
+    svg.innerHTML = '';
+    const svgRect = svg.getBoundingClientRect();
+    _afWorkspace.pipelines.forEach(pipe => {
+      const fromDot = blockLayer.querySelector(`.factory-block[data-block-id="${pipe.fromBlockId}"] .port-dot[data-port-id="${pipe.fromPortId}"]`);
+      const toDot = blockLayer.querySelector(`.factory-block[data-block-id="${pipe.toBlockId}"] .port-dot[data-port-id="${pipe.toPortId}"]`);
+      if (!fromDot || !toDot) return;
+      const fr = fromDot.getBoundingClientRect();
+      const tr = toDot.getBoundingClientRect();
+      const fx = fr.left + fr.width/2 - svgRect.left, fy = fr.top + fr.height/2 - svgRect.top;
+      const tx = tr.left + tr.width/2 - svgRect.left, ty = tr.top + tr.height/2 - svgRect.top;
+      const cx = Math.max(Math.abs(tx - fx) * 0.5, 60);
+      const type = pipe.resolveType(_afWorkspace);
+      const col = TYPE_COLORS[type] || '#8090b0';
+      const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${fx},${fy} C${fx+cx},${fy} ${tx-cx},${ty} ${tx},${ty}`);
+      path.setAttribute('stroke', col);
+      path.setAttribute('stroke-width', fb?.status === 'done' ? '2.5' : '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      if (fb?.status === 'done') path.setAttribute('filter', `drop-shadow(0 0 4px ${col})`);
+      svg.appendChild(path);
+    });
+  }
+
+  // ── Block rendering ──
   function renderBlocks() {
     blockLayer.innerHTML = '';
-    svg.innerHTML = '';
-    const dk = isDark();
-
     _afWorkspace.blocks.forEach(b => {
-      const typeDef = BlockRegistry.get(b.type);
-      if (!typeDef) return;
-      const col = typeDef.color || '#4a7aff';
-
+      const td = BlockRegistry.get(b.type);
+      if (!td) return;
       const el = document.createElement('div');
       el.className = 'factory-block';
+      if (b.status === 'running') el.classList.add('running');
+      if (b.status === 'done') el.classList.add('done');
       el.dataset.blockId = b.id;
-      el.style.cssText = `left:${b.x}px;top:${b.y}px;--block-color:${col};pointer-events:all;width:200px;font-size:13px;`;
-
-      // Header
-      let statusClass = '';
-      if (b.status === 'running') statusClass = 'status-running';
-      else if (b.status === 'done') statusClass = 'status-done';
-      else if (b.status === 'error') statusClass = 'status-error';
+      el.style.cssText = `left:${b.x}px;top:${b.y}px;--block-color:${td.color || '#4a7aff'};pointer-events:all;`;
 
       const portsIn = (b.ports?.inputs || []).map(p => `
         <div class="block-port-row in">
-          <div class="port-dot" data-type="${p.type}" data-port-id="${p.id}" data-block-id="${b.id}" data-dir="in" style="pointer-events:none;"></div>
+          <div class="port-dot" data-type="${p.type}" data-port-id="${p.id}" data-block-id="${b.id}"></div>
           <span class="port-label">${p.label}</span>
         </div>`).join('');
-
       const portsOut = (b.ports?.outputs || []).map(p => `
         <div class="block-port-row out">
-          <div class="port-dot" data-type="${p.type}" data-port-id="${p.id}" data-block-id="${b.id}" data-dir="out" style="pointer-events:none;"></div>
+          <div class="port-dot" data-type="${p.type}" data-port-id="${p.id}" data-block-id="${b.id}"></div>
           <span class="port-label">${p.label}</span>
         </div>`).join('');
 
-      const isDisplay = b.type === 'output-display';
-      let displayPreview = '';
-      if (isDisplay && b.results?.length) {
-        const val = Object.values(b.results[b.results.length - 1] || {})[0];
-        if (val != null) displayPreview = `<div class="block-display-preview">${String(val).slice(0,150)}</div>`;
+      let extra = '';
+      if (b.type === 'output-display' && b.results?.length) {
+        const v = Object.values(b.results[b.results.length-1]||{})[0];
+        if (v != null) extra = `<div class="block-display-preview">${String(v).slice(0,150)}</div>`;
       }
+
+      let sc = '', sl = b.status || 'idle';
+      if (b.status === 'running') sc = 'status-running';
+      else if (b.status === 'done') { sc = 'status-done'; sl = 'done'; }
+      else if (b.status === 'error') { sc = 'status-error'; sl = 'error'; }
 
       el.innerHTML = `
         <div class="block-header" data-drag-handle>
-          <span class="block-icon">${typeDef.icon || '?'}</span>
-          <span class="block-title">${b.name || typeDef.name}</span>
+          <span class="block-icon">${td.icon || '?'}</span>
+          <span class="block-title">${b.name || td.name}</span>
         </div>
         <div class="block-body">
           <div class="block-ports-in">${portsIn}</div>
-          ${displayPreview}
+          ${extra}
           <div class="block-ports-out">${portsOut}</div>
         </div>
-        <div class="block-status ${statusClass}">${b.status || 'idle'}</div>
+        <div class="block-status ${sc}">${sl}</div>
       `;
 
-      // Drag handler
-      const header = el.querySelector('[data-drag-handle]');
-      header.addEventListener('mousedown', e => {
+      // Block drag via header
+      el.querySelector('[data-drag-handle]').addEventListener('mousedown', e => {
         e.preventDefault(); e.stopPropagation();
         dragging = { id: b.id, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y };
-        el.style.zIndex = '900'; el.style.opacity = '0.92';
+        el.classList.add('dragging');
       });
 
       blockLayer.appendChild(el);
     });
 
-    // Render pipelines
-    _afWorkspace.pipelines.forEach(pipe => {
-      const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
-      const tb = _afWorkspace.blocks.get(pipe.toBlockId);
-      if (!fb || !tb) return;
-
-      // Calculate port positions relative to blocks
-      const fromPortIdx = (fb.ports?.outputs || []).findIndex(p => p.id === pipe.fromPortId);
-      const toPortIdx = (fb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId) !== -1
-        ? (tb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId) : 0;
-
-      const fromX = fb.x + 200;
-      const fromY = fb.y + 48 + 10 + Math.max(0, fromPortIdx) * 29 + 11;
-      const toX = tb.x;
-      const toY = tb.y + 48 + 10 + Math.max(0, (tb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId)) * 29 + 11;
-
-      const dx = Math.max(Math.abs(toX - fromX) * 0.5, 60);
-      const type = pipe.resolveType(_afWorkspace);
-      const typeColors = { text:'#4a7aff', number:'#00ff9d', json:'#ffd600', trigger:'#ff3d5a', image:'#9d4aff', bool:'#ff8c00', any:'#8090b0' };
-      const strokeCol = typeColors[type] || '#8090b0';
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', `M${fromX},${fromY} C${fromX+dx},${fromY} ${toX-dx},${toY} ${toX},${toY}`);
-      path.setAttribute('stroke', strokeCol);
-      path.setAttribute('stroke-width', fb.status === 'done' ? '2.5' : '2');
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke-linecap', 'round');
-      if (fb.status === 'done') path.setAttribute('filter', `drop-shadow(0 0 3px ${strokeCol})`);
-      svg.appendChild(path);
-    });
+    // Pipelines need a frame to get accurate port positions after DOM layout
+    requestAnimationFrame(() => renderPipelines());
   }
 
+  function fullRender() { renderBlocks(); }
   renderBlocks();
-  _afSmallRenderFn = renderBlocks;
+  _afSmallRenderFn = fullRender;
 
   // ── Pan interaction ──
   preview.addEventListener('mousedown', e => {
     if (dragging) return;
-    const target = e.target.closest('.factory-block');
-    if (target) return; // let block drag handle it
+    if (e.target.closest('.factory-block')) return;
     e.preventDefault();
     panning = { sx: e.clientX, sy: e.clientY, opx: panX, opy: panY };
     preview.style.cursor = 'grabbing';
@@ -5943,40 +5933,19 @@ function _afRenderSmall(container) {
       b.y = dragging.oy + (e.clientY - dragging.sy);
       const el = blockLayer.querySelector(`[data-block-id="${b.id}"]`);
       if (el) { el.style.left = b.x + 'px'; el.style.top = b.y + 'px'; }
-      // Re-render pipelines
-      svg.innerHTML = '';
-      _afWorkspace.pipelines.forEach(pipe => {
-        const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
-        const tb = _afWorkspace.blocks.get(pipe.toBlockId);
-        if (!fb || !tb) return;
-        const fromPortIdx = (fb.ports?.outputs || []).findIndex(p => p.id === pipe.fromPortId);
-        const fromX = fb.x + 200;
-        const fromY = fb.y + 48 + 10 + Math.max(0, fromPortIdx) * 29 + 11;
-        const toX = tb.x;
-        const toY = tb.y + 48 + 10 + Math.max(0, (tb.ports?.inputs || []).findIndex(p => p.id === pipe.toPortId)) * 29 + 11;
-        const dx = Math.max(Math.abs(toX - fromX) * 0.5, 60);
-        const type = pipe.resolveType(_afWorkspace);
-        const typeColors = { text:'#4a7aff', number:'#00ff9d', json:'#ffd600', trigger:'#ff3d5a', image:'#9d4aff', bool:'#ff8c00', any:'#8090b0' };
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', `M${fromX},${fromY} C${fromX+dx},${fromY} ${toX-dx},${toY} ${toX},${toY}`);
-        path.setAttribute('stroke', typeColors[type] || '#8090b0');
-        path.setAttribute('stroke-width', '2');
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke-linecap', 'round');
-        svg.appendChild(path);
-      });
+      renderPipelines();
     }
     if (panning) {
       panX = panning.opx + (e.clientX - panning.sx);
       panY = panning.opy + (e.clientY - panning.sy);
-      applyTransform();
+      applyPan();
     }
   };
 
   const onUp = () => {
     if (dragging) {
       const el = blockLayer.querySelector(`[data-block-id="${dragging.id}"]`);
-      if (el) { el.style.zIndex = ''; el.style.opacity = ''; }
+      if (el) el.classList.remove('dragging');
       dragging = null;
     }
     if (panning) { panning = null; preview.style.cursor = 'grab'; }
@@ -5986,56 +5955,79 @@ function _afRenderSmall(container) {
   document.addEventListener('mouseup', onUp);
   _afCleanupFns.push(() => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); });
 
-  // ── Theme change listener ──
-  const themeObs = new MutationObserver(() => { updateSmallGrid(); renderBlocks(); });
-  themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  _afCleanupFns.push(() => themeObs.disconnect());
-
-  // Update count
-  const countEl = wrap.querySelector('#af-small-count');
-  if (countEl) countEl.textContent = `${_afWorkspace.blocks.size} blocks \u00B7 ${_afWorkspace.pipelines.size} connections`;
+  // ── Count ──
+  const countEl = container.querySelector('#af-small-count');
+  if (countEl) countEl.textContent = `${_afWorkspace.blocks.size} blocks \u00B7 ${_afWorkspace.pipelines.size} pipelines`;
 
   // ── Button handlers ──
-  wrap.querySelector('#af-small-expand').addEventListener('click', () => _afExpandToFull());
+  container.querySelector('#af-small-expand').addEventListener('click', () => _afExpandToFull());
 
-  wrap.querySelector('#af-small-run').addEventListener('click', () => {
+  container.querySelector('#af-small-run').addEventListener('click', () => {
     if (_afFactory.state !== 'running') {
       _afFactory.run(_afWorkspace);
-      const statusEl = wrap.querySelector('#af-small-status');
-      if (statusEl) statusEl.textContent = 'Running pipeline...';
+      container.querySelector('#af-small-status').textContent = 'RUNNING';
       Bus.once('factory:completed', () => {
-        if (statusEl) statusEl.textContent = 'Pipeline complete';
+        container.querySelector('#af-small-status').textContent = 'COMPLETE';
         renderBlocks();
       });
     }
   });
 
-  wrap.querySelector('#af-small-stop').addEventListener('click', () => {
+  container.querySelector('#af-small-stop').addEventListener('click', () => {
     _afFactory.stop();
-    wrap.querySelector('#af-small-status').textContent = 'Stopped';
+    container.querySelector('#af-small-status').textContent = 'STOPPED';
   });
 
-  wrap.querySelector('#af-small-reset').addEventListener('click', () => {
+  container.querySelector('#af-small-reset').addEventListener('click', () => {
     _afFactory.stop();
     _afWorkspace.blocks.forEach(b => { b.status = 'idle'; b.results = []; });
     renderBlocks();
-    wrap.querySelector('#af-small-status').textContent = 'Reset \u2014 click \u25B6 Run or \u2922 Expand';
+    container.querySelector('#af-small-status').textContent = 'READY';
   });
 
-  // Description section
+  // ── Description section ──
   const desc = document.createElement('div');
-  desc.className = 'step';
-  desc.style.marginTop = '12px';
+  desc.style.cssText = 'margin-top:16px;';
   desc.innerHTML = `
-    <div class="step-num">How it works</div>
-    <h4>Directed Acyclic Graph Execution</h4>
-    <p>Blocks are nodes in a DAG. Each block executes only when all upstream inputs are resolved. The engine performs a <strong>topological sort</strong> (Kahn's algorithm) to determine execution order, then processes blocks sequentially with async support for AI blocks.</p>
-    <div class="math-block">order = topoSort(V, E)    // Kahn's BFS \u2014 O(V+E)
+    <div class="two-col">
+      <div>
+        <div class="step"><div class="step-num">Architecture</div>
+          <h4>Visual DAG Workflow Engine</h4>
+          <p>The AI Factory Builder is a complete visual pipeline editor. Users construct node-and-wire graphs where each <strong>block</strong> represents a computational task \u2014 LLM calls, data transforms, logic gates, template engines, and more. The graph is executed as a <strong>Directed Acyclic Graph (DAG)</strong> using topological sort.</p>
+          <div class="math-block">order = topoSort(V, E)    // Kahn's BFS \u2014 O(V+E)
 for block in order:
   inputs \u2190 gather(upstream connections)
   result \u2190 await block.exec(config, inputs)
   propagate(result \u2192 downstream)</div>
-    <p style="margin-top:8px;font-size:12px;color:var(--text-3)">Click <strong>\u2922 Expand</strong> to open the full factory layout with the industrial interface, floating windows, minimap, and all 30+ block types.</p>
+        </div>
+        <div class="step" style="margin-top:14px"><div class="step-num">Block System</div>
+          <h4>30+ Block Types Across 6 Categories</h4>
+          <p><strong>AI Agents</strong> \u2014 LLM, Code, and Reasoning agents with configurable prompts, models, and temperature.<br>
+          <strong>I/O</strong> \u2014 Text inputs, display outputs, and interactive chat blocks.<br>
+          <strong>Logic</strong> \u2014 Conditional branching, loops with backflow pipelines, merge nodes.<br>
+          <strong>Data</strong> \u2014 JSON parsing, templates with <code>{{var}}</code> substitution, JS expression transforms, accumulators, comparators.<br>
+          <strong>Flow Control</strong> \u2014 Loop controllers, routers, validators, gates.<br>
+          <strong>Utilities</strong> \u2014 Annotators, prompt builders, image generation/interpretation, HTTP requests, web search.</p>
+        </div>
+      </div>
+      <div class="sidebar">
+        <div class="panel">
+          <h3 style="font-size:12px;margin-bottom:6px">Technical Stack</h3>
+          <div style="font-size:11px;color:var(--text-3);line-height:1.7">
+            <div><strong>Rendering</strong> \u2014 Vanilla JS, CSS custom properties, SVG bezier curves</div>
+            <div><strong>Execution</strong> \u2014 Topological sort (Kahn's algorithm), async/await pipeline</div>
+            <div><strong>Backflow</strong> \u2014 Loop detection via marked backflow edges, re-queue loop body with iteration guard</div>
+            <div><strong>UI</strong> \u2014 Floating window system, minimap, context menus, drag-and-drop from library</div>
+            <div><strong>State</strong> \u2014 EventBus pub/sub, undo/redo via workspace snapshots (80 levels)</div>
+            <div><strong>Persistence</strong> \u2014 File System Access API (Chrome/Edge) with IndexedDB directory caching</div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h3 style="font-size:12px;margin-bottom:6px">Expand for Full Experience</h3>
+          <p style="font-size:11px;color:var(--text-3);line-height:1.6">Click <strong>\u2922 Expand</strong> above to open the full factory interface with the complete block library, search, floating settings/results windows, minimap navigation, keyboard shortcuts, and all 30+ block types.</p>
+        </div>
+      </div>
+    </div>
   `;
   container.appendChild(desc);
 }
