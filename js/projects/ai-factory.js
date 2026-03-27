@@ -5681,9 +5681,9 @@ function _afBuildDOM(container, isExpanded) {
       <div id="af-workspace">
         <div id="af-workspace-grid"></div>
         <div id="af-workspace-world">
-          <svg id="af-pipeline-layer"></svg>
           <div id="af-block-layer"></div>
         </div>
+        <svg id="af-pipeline-layer" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:5;"></svg>
         <svg id="af-pipeline-drawing" style="position:absolute;inset:0;pointer-events:none;z-index:50;overflow:visible"></svg>
         <div id="af-window-layer"></div>
         <div id="af-minimap-container" class="${isExpanded ? '' : 'hidden'}">
@@ -5798,20 +5798,21 @@ function _afRenderSmall(container) {
   `;
   container.appendChild(statusBar);
 
-  // ── Inner world (pannable container) ──
+  // ── Inner world (pannable container for blocks) ──
   const world = document.createElement('div');
   world.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;transform-origin:0 0;';
   preview.appendChild(world);
 
-  // SVG pipeline layer
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2;';
-  world.appendChild(svg);
-
-  // Block layer
+  // Block layer (inside world — moves with pan)
   const blockLayer = document.createElement('div');
-  blockLayer.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:10;';
+  blockLayer.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;';
   world.appendChild(blockLayer);
+
+  // SVG pipeline layer — OUTSIDE world, directly in preview, so it has real dimensions.
+  // We manually offset coordinates by panX/panY to keep pipelines aligned with blocks.
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:5;';
+  preview.appendChild(svg);
 
   // ── State ──
   let panX = 0, panY = 0;
@@ -5819,33 +5820,60 @@ function _afRenderSmall(container) {
   const TYPE_COLORS = { text:'#4a7aff', number:'#00ff9d', json:'#ffd600', trigger:'#ff3d5a', image:'#9d4aff', bool:'#ff8c00', any:'#8090b0' };
 
   function applyPan() {
-    world.style.transform = `translate(${panX}px, ${panY}px)`;
+    const s = parseFloat(world.dataset.scale || '1');
+    world.style.transform = `translate(${panX}px, ${panY}px) scale(${s})`;
     preview.style.backgroundPosition = `${panX}px ${panY}px, ${panX}px ${panY}px`;
+    renderPipelines();
   }
 
-  // ── Pipeline rendering using actual port dot positions ──
+  // ── Pipeline rendering in world coordinates + pan offset ──
+  // Pipelines are drawn in the SVG which is a child of preview (not world).
+  // Block positions are world coordinates. We add panX/panY to convert to preview-space.
   function renderPipelines() {
     svg.innerHTML = '';
-    const svgRect = svg.getBoundingClientRect();
     _afWorkspace.pipelines.forEach(pipe => {
-      const fromDot = blockLayer.querySelector(`.factory-block[data-block-id="${pipe.fromBlockId}"] .port-dot[data-port-id="${pipe.fromPortId}"]`);
-      const toDot = blockLayer.querySelector(`.factory-block[data-block-id="${pipe.toBlockId}"] .port-dot[data-port-id="${pipe.toPortId}"]`);
+      const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
+      const tb = _afWorkspace.blocks.get(pipe.toBlockId);
+      if (!fb || !tb) return;
+
+      // Measure port offsets from rendered block elements
+      const fromEl = blockLayer.querySelector(`.factory-block[data-block-id="${pipe.fromBlockId}"]`);
+      const toEl = blockLayer.querySelector(`.factory-block[data-block-id="${pipe.toBlockId}"]`);
+      if (!fromEl || !toEl) return;
+      const fromDot = fromEl.querySelector(`.port-dot[data-port-id="${pipe.fromPortId}"]`);
+      const toDot = toEl.querySelector(`.port-dot[data-port-id="${pipe.toPortId}"]`);
       if (!fromDot || !toDot) return;
-      const fr = fromDot.getBoundingClientRect();
-      const tr = toDot.getBoundingClientRect();
-      const fx = fr.left + fr.width/2 - svgRect.left, fy = fr.top + fr.height/2 - svgRect.top;
-      const tx = tr.left + tr.width/2 - svgRect.left, ty = tr.top + tr.height/2 - svgRect.top;
+
+      // Get port center relative to its block element
+      const fBlockR = fromEl.getBoundingClientRect();
+      const tBlockR = toEl.getBoundingClientRect();
+      const fDotR = fromDot.getBoundingClientRect();
+      const tDotR = toDot.getBoundingClientRect();
+
+      // Port offset within the block (screen space, but same scale since zoom=1)
+      const fOffX = fDotR.left + fDotR.width/2 - fBlockR.left;
+      const fOffY = fDotR.top + fDotR.height/2 - fBlockR.top;
+      const tOffX = tDotR.left + tDotR.width/2 - tBlockR.left;
+      const tOffY = tDotR.top + tDotR.height/2 - tBlockR.top;
+
+      // Pipeline coords = (block world pos + port offset) * scale + pan
+      const s = parseFloat(world.dataset.scale || '1');
+      const fx = (fb.x + fOffX) * s + panX;
+      const fy = (fb.y + fOffY) * s + panY;
+      const tx = (tb.x + tOffX) * s + panX;
+      const ty = (tb.y + tOffY) * s + panY;
+
       const cx = Math.max(Math.abs(tx - fx) * 0.5, 60);
       const type = pipe.resolveType(_afWorkspace);
       const col = TYPE_COLORS[type] || '#8090b0';
-      const fb = _afWorkspace.blocks.get(pipe.fromBlockId);
+
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', `M${fx},${fy} C${fx+cx},${fy} ${tx-cx},${ty} ${tx},${ty}`);
       path.setAttribute('stroke', col);
-      path.setAttribute('stroke-width', fb?.status === 'done' ? '2.5' : '2');
+      path.setAttribute('stroke-width', fb.status === 'done' ? '2.5' : '2');
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke-linecap', 'round');
-      if (fb?.status === 'done') path.setAttribute('filter', `drop-shadow(0 0 4px ${col})`);
+      if (fb.status === 'done') path.setAttribute('filter', `drop-shadow(0 0 4px ${col})`);
       svg.appendChild(path);
     });
   }
@@ -5953,7 +5981,39 @@ function _afRenderSmall(container) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
-  _afCleanupFns.push(() => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); });
+  _afCleanupFns.push(() => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    // Reset state so returning from expand doesn't leave stale panning/dragging
+    panning = null; dragging = null;
+  });
+
+  // ── Zoom with mouse wheel inside preview ──
+  preview.addEventListener('wheel', e => {
+    e.preventDefault();
+    // Zoom is simulated via panning: scroll up = zoom in (move content closer to pointer)
+    // We don't have real zoom in small mode, but we can use wheel for pan (more useful)
+    // User asked: scroll in box = zoom. Let's implement simple zoom via CSS scale on world.
+    // Actually, keep it simple: just use wheel for vertical pan to be consistent
+    // But user explicitly asked wheel=zoom. Let's do it.
+    const rect = preview.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    // Simple zoom: adjust panX/panY to zoom toward mouse position
+    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.93;
+    // Move pan so that the point under the mouse stays in place
+    panX = mx - (mx - panX) * zoomFactor;
+    panY = my - (my - panY) * zoomFactor;
+    // Scale the world
+    const currentScale = parseFloat(world.dataset.scale || '1');
+    const newScale = Math.max(0.3, Math.min(3, currentScale * zoomFactor));
+    world.dataset.scale = newScale;
+    world.style.transform = `translate(${panX}px, ${panY}px) scale(${newScale})`;
+    preview.style.backgroundPosition = `${panX}px ${panY}px, ${panX}px ${panY}px`;
+    const gs = 24 * newScale, G5 = gs * 5;
+    preview.style.backgroundSize = `${gs}px ${gs}px, ${G5}px ${G5}px`;
+    renderPipelines();
+  }, { passive: false });
 
   // ── Count ──
   const countEl = container.querySelector('#af-small-count');
